@@ -1,212 +1,199 @@
-// ============================================================
-// reservas.js - CRUD de reservaciones + check-in/check-out
-// ============================================================
+// reservas.js - Reservaciones, cobro con factura, check-in/out (Administrador y Recepcionista)
+let reservas = [];
+let reservaEnPago = null;
 
 function badgeEstadoReserva(estado) {
-    if (estado === "Confirmada") return `<span class="badge bg-primary">Confirmada</span>`;
-    if (estado === "Check-In") return `<span class="badge bg-success">Check-In</span>`;
-    if (estado === "Check-Out") return `<span class="badge bg-secondary">Check-Out</span>`;
-    return `<span class="badge bg-danger">Cancelada</span>`;
+    const clases = { "Confirmada": "bg-primary", "Check-In": "bg-success", "Check-Out": "bg-secondary", "Cancelada": "bg-danger" };
+    return `<span class="badge ${clases[estado] || "bg-secondary"}">${esc(estado)}</span>`;
+}
+function badgePago(r) {
+    if (r.estado_pago === "Pagada") return `<span class="badge bg-success"><i class="bi bi-check2-circle"></i> Pagada</span>`;
+    if (r.estado === "Cancelada") return `<span class="text-muted small">—</span>`;
+    return `<span class="badge bg-warning">Pendiente</span>`;
 }
 
-function accionesReserva(r) {
-    if (r.estado === "Confirmada") {
-        return `
-            <button class="btn btn-sm btn-outline-success btn-checkin" data-id="${r.id}" data-hab="${r.habitacion_id}" title="Check-In">
-                <i class="bi bi-box-arrow-in-right"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-danger btn-cancelar" data-id="${r.id}" data-hab="${r.habitacion_id}" title="Cancelar">
-                <i class="bi bi-x-circle"></i>
-            </button>
-        `;
-    }
-    if (r.estado === "Check-In") {
-        return `
-            <button class="btn btn-sm btn-outline-secondary btn-checkout" data-id="${r.id}" data-hab="${r.habitacion_id}" title="Check-Out">
-                <i class="bi bi-box-arrow-left"></i>
-            </button>
-        `;
-    }
-    return `<span class="text-muted small">—</span>`;
+function acciones(r) {
+    const b = [];
+    const btn = (acc, cls, icono, titulo) =>
+        `<button class="btn btn-sm ${cls}" data-accion="${acc}" data-id="${r.id}" title="${titulo}" aria-label="${titulo}"><i class="bi ${icono}"></i></button>`;
+    if (r.estado !== "Cancelada" && r.estado_pago === "Pendiente") b.push(btn("cobrar", "btn-outline-primary", "bi-credit-card", "Cobrar"));
+    if (r.estado_pago === "Pagada") b.push(btn("factura", "btn-outline-primary", "bi-receipt", "Ver factura"));
+    if (r.estado === "Confirmada") b.push(btn("checkin", "btn-outline-success", "bi-box-arrow-in-right", "Check-In"));
+    if (r.estado === "Check-In") b.push(btn("checkout", "btn-outline-secondary", "bi-box-arrow-left", "Check-Out"));
+    if (r.estado === "Confirmada" && r.estado_pago === "Pendiente") b.push(btn("cancelar", "btn-outline-danger", "bi-x-circle", "Cancelar"));
+    b.push(btn("historial", "btn-outline-secondary", "bi-clock-history", "Movimientos"));
+    return `<div class="d-inline-flex gap-1 flex-wrap justify-content-end">${b.join("")}</div>`;
 }
 
-// ------------------------------------------------------------
-// Cargar tabla de reservaciones (con datos de huésped y habitación)
-// ------------------------------------------------------------
 async function cargarReservas() {
     const tabla = document.getElementById("tabla-reservas");
-
-    const { data, error } = await supabaseClient
-        .from("reservaciones")
-        .select(`
-            id, fecha_entrada, fecha_salida, monto_total, estado, habitacion_id,
-            huespedes ( nombre_completo, cedula_pasaporte ),
-            habitaciones ( numero, tipo )
-        `)
-        .order("fecha_entrada", { ascending: false });
-
-    if (error) {
-        mostrarAlerta("alertas", "Error al cargar reservaciones: " + error.message, "danger");
-        return;
-    }
-
+    const { data, error } = await supabaseClient.from("reservaciones").select(`
+        id, fecha_entrada, fecha_salida, monto_total, estado, estado_pago, habitacion_id,
+        huespedes ( nombre_completo, cedula_pasaporte ), habitaciones ( numero, tipo )`)
+        .order("id", { ascending: false });
+    if (error) return mostrarAlerta("alertas", "Error al cargar reservaciones: " + error.message, "danger");
+    reservas = data;
     if (!data.length) {
-        tabla.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No hay reservaciones registradas.</td></tr>`;
+        tabla.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No hay reservaciones registradas.</td></tr>`;
         return;
     }
-
     tabla.innerHTML = data.map((r) => `
         <tr>
-            <td>
-                <div class="fw-semibold">${r.huespedes?.nombre_completo ?? "—"}</div>
-                <small class="text-muted">${r.huespedes?.cedula_pasaporte ?? ""}</small>
-            </td>
-            <td>${r.habitaciones?.numero ?? "—"} <small class="text-muted">(${r.habitaciones?.tipo ?? ""})</small></td>
-            <td>${r.fecha_entrada}</td>
-            <td>${r.fecha_salida}</td>
+            <td><div class="fw-semibold">${esc(r.huespedes?.nombre_completo) || "—"}</div><small class="text-muted">${esc(r.huespedes?.cedula_pasaporte)}</small></td>
+            <td>${esc(r.habitaciones?.numero) || "—"} <small class="text-muted">(${esc(r.habitaciones?.tipo)})</small></td>
+            <td>${formatoFecha(r.fecha_entrada)}</td>
+            <td>${formatoFecha(r.fecha_salida)}</td>
             <td>${formatoMoneda(r.monto_total)}</td>
             <td>${badgeEstadoReserva(r.estado)}</td>
-            <td class="text-end">${accionesReserva(r)}</td>
-        </tr>
-    `).join("");
-
-    document.querySelectorAll(".btn-checkin").forEach((btn) => btn.addEventListener("click", () => hacerCheckIn(btn.dataset.id)));
-    document.querySelectorAll(".btn-checkout").forEach((btn) => btn.addEventListener("click", () => hacerCheckOut(btn.dataset.id, btn.dataset.hab)));
-    document.querySelectorAll(".btn-cancelar").forEach((btn) => btn.addEventListener("click", () => cancelarReserva(btn.dataset.id, btn.dataset.hab)));
+            <td>${badgePago(r)}</td>
+            <td class="text-end">${acciones(r)}</td>
+        </tr>`).join("");
 }
 
-// ------------------------------------------------------------
-// Llenar los <select> del modal (huéspedes y habitaciones disponibles)
-// ------------------------------------------------------------
 async function cargarOpcionesFormulario() {
-    const selectHuesped = document.getElementById("huesped_id");
-    const selectHabitacion = document.getElementById("habitacion_id");
-    document.getElementById("fecha_entrada").min = new Date().toISOString().split("T")[0];
-    document.getElementById("fecha_salida").min = new Date().toISOString().split("T")[0];
-
-    const { data: huespedes, error: errHu } = await supabaseClient
-        .from("huespedes")
-        .select("id, nombre_completo, cedula_pasaporte")
-        .order("nombre_completo");
-
-    if (!errHu) {
-        selectHuesped.innerHTML = `<option value="" disabled selected>Seleccione un huésped</option>` +
-            huespedes.map((h) => `<option value="${h.id}">${h.nombre_completo} (${h.cedula_pasaporte})</option>`).join("");
+    const hoy = hoyLocal();
+    document.getElementById("fecha_entrada").min = hoy;
+    document.getElementById("fecha_salida").min = hoy;
+    const [hu, ha] = await Promise.all([
+        supabaseClient.from("huespedes").select("id, nombre_completo, cedula_pasaporte").order("nombre_completo"),
+        supabaseClient.from("habitaciones").select("id, numero, tipo, precio_noche").eq("estado", "Disponible").order("numero"),
+    ]);
+    if (!hu.error) {
+        document.getElementById("huesped_id").innerHTML = `<option value="" disabled selected>Seleccione un huésped</option>` +
+            hu.data.map((h) => `<option value="${h.id}">${esc(h.nombre_completo)} (${esc(h.cedula_pasaporte)})</option>`).join("");
     }
-
-    const { data: habitaciones, error: errHab } = await supabaseClient
-        .from("habitaciones")
-        .select("id, numero, tipo, precio_noche")
-        .eq("estado", "Disponible")
-        .order("numero");
-
-    if (!errHab) {
-        selectHabitacion.innerHTML = `<option value="" disabled selected>Seleccione una habitación</option>` +
-            habitaciones.map((h) => `<option value="${h.id}" data-precio="${h.precio_noche}">${h.numero} - ${h.tipo} (${formatoMoneda(h.precio_noche)}/noche)</option>`).join("");
+    if (!ha.error) {
+        document.getElementById("habitacion_id").innerHTML = `<option value="" disabled selected>Seleccione una habitación</option>` +
+            ha.data.map((h) => `<option value="${h.id}">${esc(h.numero)} - ${esc(h.tipo)} (${formatoMoneda(h.precio_noche)}/noche)</option>`).join("");
     }
 }
 
-// ------------------------------------------------------------
-// Crear reservación
-// ------------------------------------------------------------
-async function crearReserva(event) {
-    event.preventDefault();
-
+// ---------- Crear reservación y pasar al pago ----------
+async function crearReserva(e) {
+    e.preventDefault();
     const huesped_id = document.getElementById("huesped_id").value;
     const habitacion_id = document.getElementById("habitacion_id").value;
     const fecha_entrada = document.getElementById("fecha_entrada").value;
     const fecha_salida = document.getElementById("fecha_salida").value;
+    const noches = nochesEntre(fecha_entrada, fecha_salida);
+    if (!huesped_id || !habitacion_id) return mostrarAlerta("alertas", "Selecciona un huésped y una habitación.", "danger");
+    if (fecha_entrada < hoyLocal()) return mostrarAlerta("alertas", "La fecha de entrada no puede ser anterior a hoy.", "danger");
+    if (!(noches > 0)) return mostrarAlerta("alertas", "La fecha de salida debe ser posterior a la de entrada.", "danger");
 
-    const entrada = new Date(fecha_entrada);
-    const salida = new Date(fecha_salida);
-    const noches = Math.round((salida - entrada) / (1000 * 60 * 60 * 24));
+    await conBoton(e.submitter, async () => {
+        const { data: hab, error: eh } = await supabaseClient.from("habitaciones").select("precio_noche, estado").eq("id", habitacion_id).single();
+        if (eh || !hab) return mostrarAlerta("alertas", "La habitación seleccionada no existe.", "danger");
+        if (hab.estado !== "Disponible") return mostrarAlerta("alertas", "Esa habitación ya no está disponible.", "danger");
 
-    if (!(noches > 0)) {
-        mostrarAlerta("alertas", "La fecha de salida debe ser posterior a la fecha de entrada.", "danger");
-        return;
-    }
+        const monto_total = noches * Number(hab.precio_noche);
+        const { data: nueva, error } = await supabaseClient.from("reservaciones")
+            .insert({ huesped_id, habitacion_id, fecha_entrada, fecha_salida, monto_total, estado: "Confirmada" })
+            .select("id").single();
+        if (error) return mostrarAlerta("alertas", "Error al crear la reservación: " + error.message, "danger");
 
-    const { data: habitacion, error: errHab } = await supabaseClient
-        .from("habitaciones")
-        .select("precio_noche")
-        .eq("id", habitacion_id)
-        .single();
+        await supabaseClient.from("habitaciones").update({ estado: "Ocupada" }).eq("id", habitacion_id);
+        e.target.reset();
+        await Promise.all([cargarReservas(), cargarOpcionesFormulario()]);
 
-    if (errHab || !habitacion) {
-        mostrarAlerta("alertas", "La habitación seleccionada no existe.", "danger");
-        return;
-    }
+        // Fin del registro: se abre el pago
+        const modalReserva = document.getElementById("modalNuevaReserva");
+        modalReserva.addEventListener("hidden.bs.modal", () => {
+            const r = reservas.find((x) => x.id === nueva.id);
+            if (r) abrirPago(r);
+        }, { once: true });
+        cerrarModal("modalNuevaReserva");
+    });
+}
 
-    const monto_total = noches * Number(habitacion.precio_noche);
+// ---------- Pago ----------
+function abrirPago(r) {
+    reservaEnPago = r;
+    const noches = nochesEntre(r.fecha_entrada, r.fecha_salida);
+    document.getElementById("pago-resumen").textContent =
+        `${r.huespedes?.nombre_completo} · Hab. ${r.habitaciones?.numero} · ${noches} noche(s) · ${formatoFecha(r.fecha_entrada)} al ${formatoFecha(r.fecha_salida)}`;
+    document.getElementById("pago-total").textContent = formatoMoneda(r.monto_total);
+    document.getElementById("metodo-0").checked = true;
+    document.getElementById("pago-referencia").value = "";
+    actualizarReferencia();
+    abrirModal("modalPago");
+}
 
-    const { error: errInsert } = await supabaseClient
-        .from("reservaciones")
-        .insert({
-            huesped_id,
-            habitacion_id,
-            fecha_entrada,
-            fecha_salida,
-            monto_total,
-            estado: "Confirmada",
+function metodoSeleccionado() {
+    return document.querySelector('input[name="metodo"]:checked').value;
+}
+function actualizarReferencia() {
+    const m = METODOS_PAGO.find((x) => x.valor === metodoSeleccionado());
+    const grupo = document.getElementById("grupo-referencia");
+    grupo.hidden = !m.requiereReferencia;
+    document.getElementById("pago-referencia").required = m.requiereReferencia;
+}
+
+async function procesarPago(e) {
+    e.preventDefault();
+    if (!reservaEnPago) return;
+    const metodo = metodoSeleccionado();
+    const def = METODOS_PAGO.find((x) => x.valor === metodo);
+    const referencia = document.getElementById("pago-referencia").value.trim();
+    if (def.requiereReferencia && !referencia) return mostrarAlerta("alertas", "Ingresa el número de referencia del pago.", "danger");
+
+    await conBoton(e.submitter, async () => {
+        const { data: facturaId, error } = await supabaseClient.rpc("procesar_pago", {
+            p_reservacion: reservaEnPago.id, p_metodo: metodo, p_referencia: referencia || null,
         });
-
-    if (errInsert) {
-        mostrarAlerta("alertas", "Error al crear la reservación: " + errInsert.message, "danger");
-        return;
-    }
-
-    // Al confirmar la reserva, la habitación pasa a Ocupada
-    await supabaseClient.from("habitaciones").update({ estado: "Ocupada" }).eq("id", habitacion_id);
-
-    mostrarAlerta("alertas", `Reservación creada: ${noches} noche(s), monto total ${formatoMoneda(monto_total)}.`, "success");
-    document.getElementById("form-nueva-reserva").reset();
-    bootstrap.Modal.getInstance(document.getElementById("modalNuevaReserva")).hide();
-    cargarReservas();
-    cargarOpcionesFormulario();
+        if (error) return mostrarAlerta("alertas", "No se pudo procesar el pago: " + error.message, "danger");
+        reservaEnPago = null;
+        document.getElementById("modalPago").addEventListener("hidden.bs.modal", () => abrirFactura(facturaId), { once: true });
+        cerrarModal("modalPago");
+        mostrarAlerta("alertas", "Pago registrado y factura generada.", "success");
+        cargarReservas();
+    });
 }
 
-// ------------------------------------------------------------
-// Check-in / Check-out / Cancelar
-// ------------------------------------------------------------
-async function hacerCheckIn(reservacionId) {
-    const { error } = await supabaseClient.from("reservaciones").update({ estado: "Check-In" }).eq("id", reservacionId);
-    if (error) {
-        mostrarAlerta("alertas", "Error al hacer check-in: " + error.message, "danger");
-        return;
-    }
-    mostrarAlerta("alertas", "Check-In realizado correctamente.", "success");
-    cargarReservas();
+// ---------- Check-in / out / cancelar / historial ----------
+async function cambiarEstado(r, estado, liberaHabitacion) {
+    const { error } = await supabaseClient.from("reservaciones").update({ estado }).eq("id", r.id);
+    if (error) return mostrarAlerta("alertas", `Error al actualizar la reservación: ${error.message}`, "danger");
+    if (liberaHabitacion) await supabaseClient.from("habitaciones").update({ estado: "Disponible" }).eq("id", r.habitacion_id);
+    mostrarAlerta("alertas", `Reservación actualizada: ${estado}.`, "success");
+    await Promise.all([cargarReservas(), cargarOpcionesFormulario()]);
 }
 
-async function hacerCheckOut(reservacionId, habitacionId) {
-    const { error } = await supabaseClient.from("reservaciones").update({ estado: "Check-Out" }).eq("id", reservacionId);
-    if (error) {
-        mostrarAlerta("alertas", "Error al hacer check-out: " + error.message, "danger");
-        return;
-    }
-    await supabaseClient.from("habitaciones").update({ estado: "Disponible" }).eq("id", habitacionId);
-    mostrarAlerta("alertas", "Check-Out realizado. Habitación liberada.", "success");
-    cargarReservas();
-    cargarOpcionesFormulario();
-}
-
-async function cancelarReserva(reservacionId, habitacionId) {
-    const { error } = await supabaseClient.from("reservaciones").update({ estado: "Cancelada" }).eq("id", reservacionId);
-    if (error) {
-        mostrarAlerta("alertas", "Error al cancelar la reservación: " + error.message, "danger");
-        return;
-    }
-    await supabaseClient.from("habitaciones").update({ estado: "Disponible" }).eq("id", habitacionId);
-    mostrarAlerta("alertas", "Reservación cancelada.", "info");
-    cargarReservas();
-    cargarOpcionesFormulario();
+async function verHistorial(r) {
+    const cuerpo = document.getElementById("historial-cuerpo");
+    cuerpo.innerHTML = `<p class="text-muted">Cargando...</p>`;
+    abrirModal("modalHistorial");
+    const { data, error } = await supabaseClient.from("movimientos_reserva")
+        .select("accion, detalle, fecha").eq("reservacion_id", r.id).order("fecha", { ascending: false });
+    if (error) { cuerpo.innerHTML = `<p class="text-danger">No se pudo cargar el historial.</p>`; return; }
+    cuerpo.innerHTML = data.length
+        ? `<ul class="list-group list-group-flush">${data.map((m) => `
+            <li class="list-group-item"><div class="d-flex justify-content-between gap-2"><strong>${esc(m.accion)}</strong><small class="text-muted">${formatoFechaHora(m.fecha)}</small></div>
+            <div class="small text-muted">${esc(m.detalle)}</div></li>`).join("")}</ul>`
+        : `<p class="text-muted">Sin movimientos registrados.</p>`;
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    const sesion = await requerirSesion();
+    const sesion = await iniciarPagina([ROL_ADMIN, ROL_RECEP], "Reservaciones");
     if (!sesion) return;
-
+    asegurarModalFactura();
     cargarReservas();
     cargarOpcionesFormulario();
     document.getElementById("form-nueva-reserva").addEventListener("submit", crearReserva);
+    document.getElementById("form-pago").addEventListener("submit", procesarPago);
+    document.querySelectorAll('input[name="metodo"]').forEach((i) => i.addEventListener("change", actualizarReferencia));
+
+    document.getElementById("tabla-reservas").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-accion]");
+        if (!b) return;
+        const r = reservas.find((x) => x.id === Number(b.dataset.id));
+        if (!r) return;
+        switch (b.dataset.accion) {
+            case "cobrar": abrirPago(r); break;
+            case "factura": abrirFacturaDeReserva(r.id); break;
+            case "checkin": cambiarEstado(r, "Check-In", false); break;
+            case "checkout": cambiarEstado(r, "Check-Out", true); break;
+            case "cancelar": if (confirm("¿Cancelar esta reservación?")) cambiarEstado(r, "Cancelada", true); break;
+            case "historial": verHistorial(r); break;
+        }
+    });
 });

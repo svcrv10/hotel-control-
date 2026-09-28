@@ -11,154 +11,45 @@
     <link href="css/style.css" rel="stylesheet">
 </head>
 <body>
+<div id="page-content" hidden>
+    <div id="alertas"></div>
 
-<div class="app-shell">
-    <aside class="sidebar">
-        <div class="sidebar-brand">
-            <i class="bi bi-building"></i>
-            <div>
-                <span class="brand-name">HotelControl</span>
-                <span class="brand-tag">Panel de gestión</span>
-            </div>
+    <div class="page-header">
+        <div class="page-header-text">
+            <span class="page-icon"><i class="bi bi-people"></i></span>
+            <div><h2>Gestión de Huéspedes</h2><span class="page-subtitle">Registro y búsqueda de huéspedes del hotel</span></div>
         </div>
-
-        <ul class="sidebar-nav">
-            <li><a class="sidebar-link" data-nav="dashboard.html" href="dashboard.html"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a></li>
-            <li><a class="sidebar-link" data-nav="habitaciones.html" href="habitaciones.html"><i class="bi bi-door-closed"></i><span>Habitaciones</span></a></li>
-            <li><a class="sidebar-link" data-nav="huespedes.html" href="huespedes.html"><i class="bi bi-people"></i><span>Huéspedes</span></a></li>
-            <li><a class="sidebar-link" data-nav="reservas.html" href="reservas.html"><i class="bi bi-calendar-check"></i><span>Reservaciones</span></a></li>
-        </ul>
-
-        <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <i class="bi bi-person-circle"></i>
-                <div>
-                    <span class="user-name" data-user-name>—</span>
-                    <span class="user-role" data-user-rol>—</span>
-                </div>
-            </div>
-            <a class="sidebar-logout" href="#" data-logout>
-                <i class="bi bi-box-arrow-right"></i> Salir
-            </a>
-        </div>
-    </aside>
-
-    <div class="main-area">
-        <header class="topbar">
-            <button class="menu-toggle" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav" aria-label="Abrir menú">
-                <i class="bi bi-list"></i>
-            </button>
-            <span class="topbar-title">Huéspedes</span>
-        </header>
-
-        <div class="content-wrap">
-            <div id="alertas"></div>
-
-            <div class="page-header">
-                <div class="page-header-text">
-                    <span class="page-icon"><i class="bi bi-people"></i></span>
-                    <div>
-                        <h2>Gestión de Huéspedes</h2>
-                        <span class="page-subtitle">Registro y búsqueda de huéspedes del hotel</span>
-                    </div>
-                </div>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoHuesped">
-                    <i class="bi bi-person-plus"></i> Nuevo Huésped
-                </button>
-            </div>
-
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body">
-                    <h6 class="fw-bold mb-3"><i class="bi bi-search"></i> Buscar por Cédula / Pasaporte</h6>
-                    <form id="form-buscar-huesped" class="row g-2">
-                        <div class="col-auto flex-grow-1">
-                            <input type="text" id="busqueda_cedula" class="form-control" placeholder="Ingrese cédula o pasaporte">
-                        </div>
-                        <div class="col-auto">
-                            <button type="submit" class="btn btn-outline-primary">Buscar</button>
-                        </div>
-                    </form>
-                    <div id="resultado-busqueda"></div>
-                </div>
-            </div>
-
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead>
-                                <tr>
-                                    <th>Cédula / Pasaporte</th>
-                                    <th>Nombre Completo</th>
-                                    <th>Teléfono</th>
-                                    <th>Email</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabla-huespedes">
-                                <tr><td colspan="4" class="text-center text-muted py-4">Cargando...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoHuesped"><i class="bi bi-person-plus"></i> Nuevo Huésped</button>
     </div>
-</div>
 
-<!-- Modal Nuevo Huésped -->
-<div class="modal fade" id="modalNuevoHuesped" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form id="form-nuevo-huesped">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-person-plus"></i> Registrar Huésped</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Cédula / Pasaporte</label>
-                        <input type="text" name="cedula_pasaporte" id="cedula_pasaporte" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Nombre Completo</label>
-                        <input type="text" name="nombre_completo" id="nombre_completo" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Teléfono</label>
-                        <input type="text" name="telefono" id="telefono" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" name="email" id="email_huesped" class="form-control">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+    <div class="card mb-4"><div class="card-body">
+        <h6 class="fw-bold mb-3"><i class="bi bi-search"></i> Buscar por Cédula / Pasaporte</h6>
+        <form id="form-buscar-huesped" class="row g-2">
+            <div class="col-auto flex-grow-1"><input type="text" id="busqueda_cedula" class="form-control" placeholder="Ingrese cédula o pasaporte" aria-label="Cédula o pasaporte"></div>
+            <div class="col-auto"><button type="submit" class="btn btn-outline-primary">Buscar</button></div>
+        </form>
+        <div id="resultado-busqueda"></div>
+    </div></div>
+    <div class="card"><div class="card-body"><div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Cédula / Pasaporte</th><th>Nombre Completo</th><th>Teléfono</th><th>Email</th></tr></thead>
+            <tbody id="tabla-huespedes"><tr><td colspan="4" class="text-center text-muted py-4">Cargando...</td></tr></tbody>
+        </table>
+    </div></div></div>
 
-<div class="offcanvas offcanvas-start sidebar-offcanvas" tabindex="-1" id="mobileNav">
-    <div class="offcanvas-header">
-        <span class="brand-name"><i class="bi bi-building"></i> HotelControl</span>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
-    </div>
-    <div class="offcanvas-body p-0 d-flex flex-column">
-        <ul class="sidebar-nav">
-            <li><a class="sidebar-link" href="dashboard.html"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a></li>
-            <li><a class="sidebar-link" href="habitaciones.html"><i class="bi bi-door-closed"></i><span>Habitaciones</span></a></li>
-            <li><a class="sidebar-link" href="huespedes.html"><i class="bi bi-people"></i><span>Huéspedes</span></a></li>
-            <li><a class="sidebar-link" href="reservas.html"><i class="bi bi-calendar-check"></i><span>Reservaciones</span></a></li>
-        </ul>
-        <div class="sidebar-footer mt-auto">
-            <a class="sidebar-logout" href="#" data-logout>
-                <i class="bi bi-box-arrow-right"></i> Salir
-            </a>
+<div class="modal fade" id="modalNuevoHuesped" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <form id="form-nuevo-huesped">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-person-plus"></i> Registrar Huésped</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
+            <div class="mb-3"><label class="form-label" for="cedula_pasaporte">Cédula / Pasaporte</label><input type="text" id="cedula_pasaporte" class="form-control" required></div>
+            <div class="mb-3"><label class="form-label" for="nombre_completo">Nombre Completo</label><input type="text" id="nombre_completo" class="form-control" required></div>
+            <div class="mb-3"><label class="form-label" for="telefono">Teléfono</label><input type="text" id="telefono" class="form-control"></div>
+            <div class="mb-3"><label class="form-label" for="email_huesped">Email</label><input type="email" id="email_huesped" class="form-control"></div>
         </div>
-    </div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">Guardar</button></div>
+    </form>
+</div></div></div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -166,6 +57,7 @@
 <script src="js/supabase-config.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/layout.js"></script>
 <script src="js/huespedes.js"></script>
 </body>
 </html>
