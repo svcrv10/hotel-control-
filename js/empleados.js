@@ -26,7 +26,9 @@ function pintarEmpleados() {
     tabla.innerHTML = lista.map((e) => {
         const yo = e.id === miId;
         const nombre = nombreCompleto(e);
-        const selector = yo
+        const selector = e.es_principal
+            ? `${badgeRol(e.rol)} <small class="text-muted">${yo ? "(tú) · " : ""}Principal <i class="bi bi-shield-lock" title="No se le puede cambiar el rol"></i></small>`
+            : yo
             ? `${badgeRol(e.rol)} <small class="text-muted">(tú)</small>`
             : `<select class="form-select form-select-sm selector-rol" data-id="${e.id}" aria-label="Rol de ${esc(nombre)}">
                 ${[ROL_ESPERA, ROL_RECEP, ROL_ADMIN].map((r) => `<option ${r === e.rol ? "selected" : ""}>${r}</option>`).join("")}
@@ -39,14 +41,14 @@ function pintarEmpleados() {
             <td>${esc(e.telefono) || "—"}</td>
             <td>${e.fecha_nacimiento ? formatoFecha(e.fecha_nacimiento) : "—"}</td>
             <td style="min-width:170px">${selector}</td>
-            <td class="text-end">${yo ? "" : `<button class="btn btn-sm btn-outline-danger" data-eliminar="${e.id}" aria-label="Eliminar a ${esc(nombre)}"><i class="bi bi-trash"></i></button>`}</td>
+            <td class="text-end">${yo || e.es_principal ? "" : `<button class="btn btn-sm btn-outline-danger" data-eliminar="${e.id}" aria-label="Eliminar a ${esc(nombre)}"><i class="bi bi-trash"></i></button>`}</td>
         </tr>`;
     }).join("");
 }
 
 async function cargarEmpleados() {
     const { data, error } = await supabaseClient.from("perfiles")
-        .select("id, username, nombre, apellido, cedula, telefono, fecha_nacimiento, email, rol, created_at")
+        .select("id, username, nombre, apellido, cedula, telefono, fecha_nacimiento, email, rol, es_principal, created_at")
         .order("created_at", { ascending: false });
     if (error) return mostrarAlerta("alertas", "Error al cargar empleados: " + error.message, "danger");
     empleados = data;
@@ -56,6 +58,7 @@ async function cargarEmpleados() {
 
 async function cambiarRol(id, rol) {
     const emp = empleados.find((e) => e.id === id);
+    if (emp && emp.es_principal) return mostrarAlerta("alertas", "El administrador principal no puede ser modificado.", "warning");
     const { error } = await supabaseClient.from("perfiles").update({ rol }).eq("id", id);
     if (error) {
         mostrarAlerta("alertas", "No se pudo cambiar el rol: " + error.message, "danger");
@@ -66,7 +69,7 @@ async function cambiarRol(id, rol) {
 }
 
 async function eliminarEmpleado() {
-    if (!empleadoAEliminar) return;
+    if (!empleadoAEliminar || empleadoAEliminar.es_principal) return;
     await conBoton(document.getElementById("btn-confirmar-eliminar"), async () => {
         const { error } = await supabaseClient.rpc("eliminar_empleado", { p_id: empleadoAEliminar.id });
         if (error) return mostrarAlerta("alertas", "No se pudo eliminar: " + error.message, "danger");
